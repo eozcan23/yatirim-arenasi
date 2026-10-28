@@ -167,8 +167,9 @@ function intro(){
     <li>Eğitim amaçlı bir oyundur, yatırım tavsiyesi değildir.</li>
   </ul></div>
   <div class="card"><label for="nick"><b>Takma adınız</b></label><input id="nick" type="text" maxlength="14" placeholder="ör. Kurt" autocomplete="off"></div>
-  <button class="btn" id="go">Katıl</button><button class="back" id="solo1" style="align-self:center">Sunucu yok mu? Tek başına oyna</button>`;
+  <button class="btn" id="go">Katıl</button><button class="back" id="solo1" style="align-self:center">Sunucu yok mu? Tek başına oyna</button><button class="back" id="hostl" style="align-self:center;color:var(--mute)">Eğitmen: sunucu ekranını aç</button>`;
   $('#go').onclick=()=>{const n=$('#nick').value.trim();if(!n){$('#nick').focus();return}S={nick:n,round:0,w:{},val:START,hist:[],rcv:[],phase:'live',locked:{},token:S.token};liveJoin(n)};
+  $('#hostl').onclick=()=>hostLive();
   $('#solo1').onclick=()=>{const n=$('#nick').value.trim()||'Oyuncu';MODE='solo';S={nick:n,round:0,w:{},val:START,hist:[],rcv:[],phase:'play',locked:{}};save();play()}
 }
 
@@ -259,15 +260,13 @@ function mk(sc){
   return btoa(unescape(encodeURIComponent(raw+'~'+c.toString(36))));
 }
 function end(){
-  const sc=score(), code=mk(sc);
+  const sc=score();
   app.innerHTML=`<div class="eyebrow">Oyun bitti</div><h1>${S.nick}, ${fmt(S.val)} TL</h1>
   <div class="card"><table><tr><td><b>Toplam reel getiri</b></td><td class="${cls(sc.totalReal)}"><b>${pc(sc.totalReal)}</b></td></tr>
   <tr><td>Çeşitlendirme rozeti</td><td>${sc.div}/${P.length} tur</td></tr></table>
   <p class="small mute">Sıralama toplam reel getiriye göre yapılır. Rozet sıralamayı etkilemez.</p></div>
-  <div class="card"><h3>Sonuç kodunuz</h3><p class="small mute">Sunucu sıralama tablosuna bu kodu girer. Dokunup kopyalayın.</p><div class="code" id="cd">${code}</div>
-  <button class="btn alt" id="cp">Kopyala</button></div>
+  <p class="small mute">Tek başına oynadığınız için sıralamaya girmediniz.</p>
   <button class="btn alt" id="rs">Yeniden oyna</button>`;
-  $('#cp').onclick=()=>{navigator.clipboard&&navigator.clipboard.writeText(code).then(()=>{$('#cp').textContent='Kopyalandı'}).catch(()=>{const r=document.createRange();r.selectNode($('#cd'));getSelection().removeAllRanges();getSelection().addRange(r)})};
   $('#rs').onclick=()=>{S={nick:S.nick,round:0,w:{},val:START,hist:[],rcv:[],phase:'intro',locked:{}};try{localStorage.removeItem('arena')}catch(e){};intro()};
   back(()=>reveal(S.hist.length-1),'Son tur sonucu');
   bar();
@@ -323,7 +322,8 @@ function liveJoin(nick){
 }
 function screenConnecting(msg){
   bar();
-  app.innerHTML=`<div class="eyebrow">Yatırım Arenası</div><h1>${esc(S.nick)}</h1><div class="card"><p id="cstat">${msg||'Sunucuya bağlanılıyor…'}</p></div><div id="solo"></div>`;
+  app.innerHTML=`<div class="eyebrow">Yatırım Arenası</div><h1>${esc(S.nick)}</h1><div class="card"><p id="cstat">${msg||'Sunucuya bağlanılıyor…'}</p></div><div id="solo"></div><button class="back" id="fresh0" style="align-self:center;color:var(--mute)">Baştan başla (kayıtlı ilerlemeyi sil)</button>`;
+  $('#fresh0').onclick=freshStart;
   setTimeout(()=>{
     if(!NET.ok&&$('#solo')){
       $('#solo').innerHTML=`<div class="card"><p class="small mute">Bağlanamıyorsanız ağ bu bağlantıya izin vermiyor ya da sunucu henüz açılmamış olabilir. Beklemeye devam edebilir ya da tek başına oynayabilirsiniz (sıralamaya girmez).</p><button class="btn alt" id="sb">Tek başına oyna</button></div>`;
@@ -351,7 +351,7 @@ function liveNet(){
   function dial(){
     if(NET.conn&&NET.conn.open)return;
     const c=peer.connect(ROOM,{reliable:true});NET.conn=c;
-    c.on('open',()=>{NET.ok=true;netBadge(true);c.send({t:'hello',nick:S.nick,token:S.token});resendAll()});
+    c.on('open',()=>{NET.ok=true;netBadge(true);c.send({t:'hello',nick:S.nick,token:S.token})});
     c.on('data',onHost);
     c.on('close',()=>{NET.ok=false;netBadge(false);later(2000)});
     c.on('error',()=>{});
@@ -372,8 +372,13 @@ function autoRound(){
 function onHost(m){
   if(!m||typeof m!=='object')return;
   switch(m.t){
-    case 'ok':S.nick=m.nick;save();break;
+    case 'ok':
+      if(S.gid&&m.gid&&S.gid!==m.gid){
+        S={nick:m.nick,round:0,w:{},val:START,hist:[],rcv:[],phase:'live',locked:{},token:S.token,live:true,gid:m.gid};CURV={};
+      }
+      S.nick=m.nick;S.gid=m.gid||S.gid;save();resendAll();break;
     case 'late':screenLate();break;
+    case 'newgame':S={nick:S.nick,round:0,w:{},val:START,hist:[],rcv:[],phase:'live',locked:{},token:S.token,live:true};CURV={};save();break;
     case 'lobby':liveLobby(m);break;
     case 'round':liveRound(m);break;
     case 'prog':updateProg(m);break;
@@ -387,6 +392,7 @@ function screenLate(){
   app.innerHTML=`<div class="eyebrow">Yatırım Arenası</div><h1>Oyun başlamış</h1><div class="card"><p>Bu oyun odası başladığı için artık yeni oyuncu alınmıyor. Bir sonraki oyunda katılabilirsiniz; şimdilik tek başına oynayabilirsiniz.</p><button class="btn alt" id="sb">Tek başına oyna</button></div>`;
   $('#sb').onclick=soloStart;
 }
+function freshStart(){try{localStorage.removeItem('arena')}catch(e){}location.href=location.pathname}
 function liveLobby(m){
   CURV={s:'lobby'};bar();
   app.innerHTML=`<div class="eyebrow">Yatırım Arenası</div><h1>${esc(S.nick)}</h1>
@@ -395,7 +401,9 @@ function liveLobby(m){
   <li>${P.length} tur oynanır; her turun bir süresi vardır.</li>
   <li>Süre dolunca dağılımınız toplam %100 değilse önceki turdaki dağılımınız aynen kalır.</li>
   <li>Her tur sonunda ilk 3 ve kendi sıranız görünür.</li>
-  <li>Bir varlığa en fazla %60 konulabilir. Sıralama enflasyon sonrası (reel) toplam getiriye göredir.</li></ul></div>`;
+  <li>Bir varlığa en fazla %60 konulabilir. Sıralama enflasyon sonrası (reel) toplam getiriye göredir.</li></ul></div>
+  <button class="back" id="fresh" style="align-self:center;color:var(--mute)">Baştan başla (kayıtlı ilerlemeyi sil)</button>`;
+  $('#fresh').onclick=freshStart;
 }
 function liveRound(m){
   const R=m.r;S.deadline=Date.now()+m.ms;
@@ -434,13 +442,13 @@ function liveResults(m){
   save();CURV={s:'res',r:m.r};reveal(m.r);
 }
 function liveEnd(m){
-  while(S.hist.length<P.length)autoRound();
+  while(S.hist.length<=m.r)autoRound();
   S.final=m;save();CURV={s:'end'};
   const sc=score();
   app.innerHTML=`<div class="eyebrow">Oyun bitti</div><h1>${esc(S.nick)}: ${m.rank}. / ${m.n}</h1>
   <div class="card"><table><tr><td><b>Toplam reel getiri</b></td><td class="${cls(sc.totalReal)}"><b>${pc(sc.totalReal)}</b></td></tr>
   <tr><td>Portföy</td><td>${fmt(S.val)} TL</td></tr>
-  <tr><td>Çeşitlendirme rozeti</td><td>${sc.div}/${P.length} tur</td></tr></table></div>
+  <tr><td>Çeşitlendirme rozeti</td><td>${sc.div}/${S.hist.length} tur</td></tr></table></div>
   <div class="card"><h3>İlk ${m.top.length}</h3>${m.top.map((x,i)=>`<div class="row" style="justify-content:space-between"><span><b>${i+1}.</b> ${esc(x.n)}</span><span class="${cls(x.tr)}"><b>${pc(x.tr)}</b></span></div>`).join('')}</div>
   <p class="small mute">Eğitim amaçlı bir oyundur; geçmiş getiri geleceğin garantisi değildir.</p>`;
   back(()=>reveal(S.hist.length-1),'Son tur sonucu');bar();
@@ -452,6 +460,7 @@ function hostLive(){
   const HK='arenaHost';
   let H=null;try{H=JSON.parse(localStorage.getItem(HK)||'null')}catch(e){}
   if(!H||!H.players)H={phase:'lobby',round:-1,secs:120,dl:0,players:{}};
+  if(!H.gid){H.gid=Math.random().toString(36).slice(2,10);try{localStorage.setItem(HK,JSON.stringify(H))}catch(e){}}
   const conns={};let peer=null,tmr=null,progT=0;
   window.__HDL=()=>H.dl;
   app.classList.add('wide');
@@ -460,7 +469,7 @@ function hostLive(){
   const send=(t,m)=>{if(isOn(t)){try{conns[t].send(m)}catch(e){}}};
   const all=m=>Object.keys(conns).forEach(t=>send(t,m));
   const n=()=>Object.keys(H.players).length;
-  const got=r=>Object.values(H.players).filter(p=>p.subs[r]).length;
+  const got=r=>Object.values(H.players).filter(p=>p.subs[r]||p.fake).length;
   function board(r){
     const a=Object.entries(H.players).map(([tok,p])=>{
       let b=null;for(let k=r;k>=0;k--)if(p.subs[k]){b=p.subs[k];break}
@@ -470,7 +479,7 @@ function hostLive(){
   }
   function resultsMsg(t,end){
     const b=board(H.round),i=b.findIndex(x=>x.tok===t),me=b[i]||{tr:0,val:START};
-    const top=b.filter(x=>x.has).slice(0,end?5:3).map(x=>({n:x.nick,tr:x.tr,v:x.val}));
+    const top=b.filter(x=>x.has).slice(0,3).map(x=>({n:x.nick,tr:x.tr,v:x.val}));
     return {t:end?'end':'results',r:H.round,top,rank:i+1,n:b.length,me:{tr:me.tr,v:me.val}};
   }
   function stateFor(t){
@@ -497,7 +506,7 @@ function hostLive(){
           p=H.players[tok]={nick:nn,subs:{}};
         }
         conns[tok]=c;persist();
-        try{c.send({t:'ok',nick:p.nick});c.send(stateFor(tok))}catch(e){}
+        try{c.send({t:'ok',nick:p.nick,gid:H.gid});c.send(stateFor(tok))}catch(e){}
         if(H.phase==='lobby')all({t:'lobby',n:n()});
         light();
       }else if(m.t==='sub'&&tok&&H.players[tok]){
@@ -520,7 +529,19 @@ function hostLive(){
     const ch=$('#chips');if(ch)ch.innerHTML=chips();
     const e=$('#tot');if(e)e.textContent=n();
   }
-  const chips=()=>Object.entries(H.players).map(([t,p])=>`<span class="chip ${isOn(t)?'':'off'}">${esc(p.nick)}</span>`).join('')||'<span class="mute">Henüz kimse katılmadı…</span>';
+  const chips=()=>Object.entries(H.players).map(([t,p])=>`<span class="chip ${isOn(t)||p.fake?'':'off'}">${esc(p.nick)}</span>`).join('')||'<span class="mute">Henüz kimse katılmadı…</span>';
+  const FN=['Kurt','Aslan','Ece','Deniz','Bora','Mira','Çınar','Lale','Poyraz','Defne','Arda','Selin'];
+  function addFake(){
+    if(H.phase!=='lobby')return;
+    FN.forEach(nm=>{const tok='fake-'+nm;if(!H.players[tok]&&!Object.values(H.players).some(p=>p.nick===nm))H.players[tok]={nick:nm,subs:{},fake:true,v:START}});
+    persist();all({t:'lobby',n:n()});view();
+  }
+  function fakeSubs(r){
+    Object.values(H.players).forEach(p=>{if(!p.fake||p.subs[r])return;
+      p.v=(p.v||START)*(1+(Math.random()*0.16-0.05));
+      let f=1;for(let k=0;k<=r;k++)f*=1+(P[k].tufe_donem_pct||0)/100;
+      p.subs[r]={val:p.v,tr:((p.v/START)/f-1)*100,nom:0,real:0,badge:Math.random()<.3}});
+  }
   function start(){if(H.phase!=='lobby'||!n())return;H.round=0;openRound()}
   function openRound(){H.phase='round';H.dl=Date.now()+H.secs*1000;persist();sched();all({t:'round',r:H.round,ms:H.secs*1000,n:n(),got:0});view()}
   function sched(){clearTimeout(tmr);if(H.phase==='round')tmr=setTimeout(closeRound,Math.max(0,H.dl-Date.now()))}
@@ -532,14 +553,22 @@ function hostLive(){
       if(!need.length||Date.now()-t0>4500){clearInterval(poll);finish()}
     },400);
   }
-  function finish(){H.phase='results';persist();Object.keys(conns).forEach(t=>send(t,resultsMsg(t,false)));view()}
+  function finish(){
+    fakeSubs(H.round);
+    if(H.endAfter){H.endAfter=false;H.phase='end';persist();Object.keys(conns).forEach(t=>send(t,resultsMsg(t,true)));view();return}
+    H.phase='results';persist();Object.keys(conns).forEach(t=>send(t,resultsMsg(t,false)));view()}
+  function endNow(){
+    if(!window.confirm('Oyun burada bitirilsin mi? Final sıralaması şu ana kadarki turlara göre hesaplanır.'))return;
+    if(H.phase==='round'){H.endAfter=true;closeRound()}
+    else if(H.phase==='results'){H.phase='end';persist();Object.keys(conns).forEach(t=>send(t,resultsMsg(t,true)));view()}
+  }
   function next(){
     if(H.phase!=='results')return;
     if(H.round>=P.length-1){H.phase='end';persist();Object.keys(conns).forEach(t=>send(t,resultsMsg(t,true)));view();return}
     H.round++;openRound();
   }
   function extend(){if(H.phase!=='round')return;H.dl+=30000;persist();sched();all({t:'round',r:H.round,ms:H.dl-Date.now(),n:n(),got:got(H.round)})}
-  function reset(){H={phase:'lobby',round:-1,secs:H.secs,dl:0,players:{}};persist();all({t:'lobby',n:0});view()}
+  function reset(){H={phase:'lobby',round:-1,secs:H.secs,dl:0,players:{},gid:Math.random().toString(36).slice(2,10)};persist();all({t:'newgame'});Object.keys(conns).forEach(t=>{try{conns[t].close()}catch(e){}});view()}
   const podium=list=>`<div class="pod">${list.map((x,i)=>`<div class="pc p${i+1}"><div class="pn">${i+1}</div><div class="pname">${esc(x.nick)}</div><div class="pr ${cls(x.tr)}">${pc(x.tr)}</div><div class="small mute">${fmt(x.val)} TL</div></div>`).join('')}</div>`;
   function view(){
     bar();
@@ -549,19 +578,20 @@ function hostLive(){
       <div class="hrow"><div class="qrbox">${JOIN_QR}<div class="small" style="color:#000">${JOIN_URL.replace('https://','')}</div></div>
       <div class="hcol"><h1 class="hbig">Telefonunuzdan katılın</h1><p class="hl">QR kodu okutun, takma ad yazın, <b>Katıl</b>’a basın.</p><p class="cnt"><b id="cnt">${n()}</b> oyuncu</p></div></div>
       <div class="chips" id="chips">${chips()}</div>
-      <div class="card"><div class="row" style="align-items:center"><label for="secs">Tur süresi</label><select id="secs">${secsOpts}</select><button class="btn" id="st" style="margin-left:auto">Oyunu başlat</button></div>
+      <div class="card"><div class="row" style="align-items:center"><label for="secs">Tur süresi</label><select id="secs">${secsOpts}</select><button class="btn alt" id="fk" style="margin-left:auto">Deneme: 12 sahte oyuncu ekle</button><button class="btn" id="st">Oyunu başlat</button></div>
       <p class="small mute">Sunum süresince bu sekmeyi açık ve görünür tutun. Soluk görünen takma adlar şu an bağlantısı kopmuş oyunculardır.</p></div>
-      <p class="small mute"><a href="#sunucu-kod" style="color:var(--green)">Çevrimdışı sıralama (kod yapıştırma)</a></p>`;
+      <div class="row"><button class="back" id="rz" style="color:var(--mute)">Odayı sıfırla (oyuncuları sil)</button></div>`;
+      $('#rz').onclick=()=>{if(window.confirm('Tüm oyuncular silinsin ve yeni oyun odası açılsın mı?'))reset()};
       $('#secs').onchange=e=>{H.secs=+e.target.value;persist()};
-      $('#st').onclick=start;
+      $('#st').onclick=start;$('#fk').onclick=addFake;
     }else if(H.phase==='round'||H.phase==='closing'){
       const g=got(H.round),c=H.phase==='closing';
       app.innerHTML=`<div class="eyebrow">Tur t${H.round} / ${P.length-1}</div>
       <div class="hbig" id="hdl" style="font-size:6rem;font-family:var(--mono)">${c?'—':''}</div>
       <div class="card"><p class="hl"><b id="got">${g}</b> / <b id="tot">${n()}</b> oyuncu kararını gönderdi</p><div class="pbar"><i id="pb" style="width:${n()?100*g/n():0}%"></i></div>
       ${c?'<p class="mute">Süre doldu, sonuçlar toplanıyor…</p>':''}</div>
-      ${c?'':`<div class="row"><button class="btn alt" id="ex">+30 sn</button><button class="btn" id="cl">Turu şimdi bitir</button></div>`}`;
-      if(!c){$('#ex').onclick=extend;$('#cl').onclick=closeRound}
+      ${c?'':`<div class="row"><button class="btn alt" id="ex">+30 sn</button><button class="btn" id="cl">Turu şimdi bitir</button><button class="btn alt" id="en" style="margin-left:auto">Oyunu bitir (final)</button></div>`}`;
+      if(!c){$('#ex').onclick=extend;$('#cl').onclick=closeRound;$('#en').onclick=endNow}
     }else if(H.phase==='results'){
       const r=H.round,p=P[r],b=board(r).filter(x=>x.has),last=r>=P.length-1;
       app.innerHTML=`<div class="eyebrow">Tur t${r} sonu · ${p.label}</div><h1 class="hbig">İlk 3</h1>
@@ -571,21 +601,20 @@ function hostLive(){
       ${ASSETS.map(a=>{const v=ret(a,p);return `<tr><td>${a.name}</td><td class="${cls(v)}">${v==null?'—':pc(v)}</td></tr>`}).join('')}
       <tr><td>Enflasyon (dönem)</td><td>${pc(p.tufe_donem_pct||0)}</td></tr></table></div>
       <div class="card"><h3>Neden?</h3>${(p.ctx&&p.ctx.konj||[]).map(k=>`<div><p class="small"><b>${k.x}</b></p><ul class="rules">${k.res.map(z=>{const a=ASSETS.find(q=>q.id===z.a);const v=ret(a,p);return `<li><b>${a.name}</b> <b class="${cls(v)}">${pc(v)}</b>. ${z.t}</li>`}).join('')}</ul></div>`).join('')}</div>
-      <button class="btn" id="nx">${last?'Final sıralamayı göster':'Sonraki turu başlat'}</button>`;
-      $('#nx').onclick=next;
+      <div class="row"><button class="btn" id="nx" style="flex:1">${last?'Final sıralamayı göster':'Sonraki turu başlat'}</button>${last?'':'<button class="btn alt" id="en">Oyunu burada bitir</button>'}</div>`;
+      $('#nx').onclick=next;if(!last)$('#en').onclick=endNow;
     }else{
-      const b=board(P.length-1).filter(x=>x.has);
+      const b=board(H.round).filter(x=>x.has);
       app.innerHTML=`<div class="eyebrow">Oyun bitti</div><h1 class="hbig">Final sıralaması</h1>
       ${b.length?podium(b.slice(0,3)):''}
-      <div class="card wrap"><table><tr><th>#</th><th>Takma ad</th><th>Portföy</th><th>Reel getiri</th><th>Rozet</th></tr>
-      ${b.slice(0,10).map((x,i)=>`<tr><td>${i+1}</td><td>${esc(x.nick)}</td><td>${fmt(x.val)}</td><td class="${cls(x.tr)}"><b>${pc(x.tr)}</b></td><td>${x.d}/${P.length}</td></tr>`).join('')}</table></div>
-      <p class="small mute">Rozet, bir turda beş varlığın hepsine para yatıranlara verilir; sıralamayı etkilemez.</p>
+      <p class="small mute">${n()} oyuncu katıldı. Her oyuncu kendi sırasını kendi telefonunda görür.</p>
       <button class="btn alt" id="rs">Yeni oyun odası aç</button>`;
       $('#rs').onclick=()=>{if(window.confirm('Tüm oyuncular ve sonuçlar silinsin mi?'))reset()};
     }
     light();
   }
   function open(){
+    if(typeof Peer==='undefined'){netBadge(false,'Bağlantı kitaplığı yüklenemedi (internet?). Öğrenciler katılamaz.');return}
     peer=new Peer(ROOM,PCFG);netBadge(false,'Sunucuya bağlanılıyor…');
     peer.on('open',()=>netBadge(true,'Oda açık'));
     peer.on('connection',onConn);
@@ -601,9 +630,9 @@ function hostLive(){
 }
 
 if(!P.length){app.innerHTML='<h1>Yatırım Arenası</h1><p>Dönem verisi yüklenmedi.</p>'}
-else if(location.hash==='#sunucu')hostLive();
-else if(location.hash==='#sunucu-kod')host();
-else{load();
+else if(location.hash==='#sunucu'||/[?&]sunucu/.test(location.search))hostLive();
+else{if(/[?&]yeni/.test(location.search)){try{localStorage.removeItem('arena')}catch(e){}}
+  load();
   if(S.live&&S.token&&S.nick){MODE='live';screenConnecting('Yeniden bağlanılıyor…');liveNet()}
   else S.phase==='play'&&S.hist.length<P.length?(S.cur?play():(S.hist.length?reveal(S.round-1):intro())):(S.hist.length>=P.length&&S.hist.length?end():intro())}
 </script>
