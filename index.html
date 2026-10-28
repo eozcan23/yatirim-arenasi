@@ -298,6 +298,9 @@ const esc=s=>String(s).replace(/[<>&"']/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;'
 let MODE='solo';
 const NET={peer:null,conn:null,ok:false,dialT:null};
 let CURV={};
+const LOG=[];
+function dbg(t){const d=new Date();LOG.push(d.toTimeString().slice(0,8)+' '+t);if(LOG.length>40)LOG.shift();const e=$('#dbg');if(e)e.textContent=LOG.join('\n')}
+const dbgBox=()=>`<details class="small mute"><summary>Bağlantı günlüğü (sorun olursa bunu bana gönderin)</summary><pre id="dbg" style="white-space:pre-wrap;font-size:.75rem;overflow-wrap:anywhere">${esc(LOG.join('\n'))}</pre></details>`;
 const medal=i=>['1.','2.','3.'][i];
 
 function netBadge(ok,txt){
@@ -322,7 +325,7 @@ function liveJoin(nick){
 }
 function screenConnecting(msg){
   bar();
-  app.innerHTML=`<div class="eyebrow">Yatırım Arenası</div><h1>${esc(S.nick)}</h1><div class="card"><p id="cstat">${msg||'Sunucuya bağlanılıyor…'}</p></div><div id="solo"></div><button class="back" id="fresh0" style="align-self:center;color:var(--mute)">Baştan başla (kayıtlı ilerlemeyi sil)</button>`;
+  app.innerHTML=`<div class="eyebrow">Yatırım Arenası</div><h1>${esc(S.nick)}</h1><div class="card"><p id="cstat">${msg||'Sunucuya bağlanılıyor…'}</p></div><div id="solo"></div>${dbgBox()}<button class="back" id="fresh0" style="align-self:center;color:var(--mute)">Baştan başla (kayıtlı ilerlemeyi sil)</button>`;
   $('#fresh0').onclick=freshStart;
   setTimeout(()=>{
     if(!NET.ok&&$('#solo')){
@@ -339,22 +342,27 @@ function soloStart(){
 }
 function liveNet(){
   if(typeof Peer==='undefined'){setStat('Bağlantı kitaplığı yüklenemedi. İnternet bağlantınızı kontrol edin.');return}
-  const peer=new Peer(undefined,PCFG);NET.peer=peer;
+  const peer=new Peer(undefined,PCFG);NET.peer=peer;dbg('öğrenci: Peer oluşturuldu');
+  let flaps=[];
   const later=ms=>{clearTimeout(NET.dialT);NET.dialT=setTimeout(dial,ms)};
-  peer.on('open',()=>dial());
-  peer.on('disconnected',()=>{try{peer.reconnect()}catch(e){}});
+  peer.on('open',id=>{dbg('broker bağlantısı açık ('+id+')');dial()});
+  peer.on('close',()=>dbg('peer kapandı'));
+  peer.on('disconnected',()=>{
+    dbg('broker ile bağlantı koptu');flaps=flaps.filter(t=>Date.now()-t<30000);flaps.push(Date.now());
+    if(flaps.length>=3){flaps=[];try{peer.destroy()}catch(e){}NET.peer=null;setTimeout(liveNet,3000)}else{try{peer.reconnect()}catch(e){}}});
   peer.on('error',e=>{
+    dbg('HATA: '+e.type+' '+(e.message||''));
     if(e.type==='peer-unavailable'){setStat('Sunucu henüz açılmadı, bekleniyor…');later(3000)}
     else{setStat('Ağ hatası, yeniden deneniyor…');
       setTimeout(()=>{if(peer.destroyed){NET.peer=null;liveNet()}else if(peer.disconnected){try{peer.reconnect()}catch(x){}}else if(peer.open){dial()}},3000)}
   });
   function dial(){
     if(NET.conn&&NET.conn.open)return;
-    const c=peer.connect(ROOM,{reliable:true});NET.conn=c;
-    c.on('open',()=>{NET.ok=true;netBadge(true);c.send({t:'hello',nick:S.nick,token:S.token})});
+    dbg('sunucuya bağlanılıyor');const c=peer.connect(ROOM,{reliable:true});NET.conn=c;
+    c.on('open',()=>{dbg('sunucuya bağlandı');NET.ok=true;netBadge(true);c.send({t:'hello',nick:S.nick,token:S.token})});
     c.on('data',onHost);
-    c.on('close',()=>{NET.ok=false;netBadge(false);later(2000)});
-    c.on('error',()=>{});
+    c.on('close',()=>{dbg('sunucu bağlantısı kapandı');NET.ok=false;netBadge(false);later(2000)});
+    c.on('error',e=>dbg('bağlantı hatası: '+(e&&e.type||e)));
   }
 }
 function toHost(m){try{if(NET.conn&&NET.conn.open)NET.conn.send(m)}catch(e){}}
@@ -402,7 +410,7 @@ function liveLobby(m){
   <li>Süre dolunca dağılımınız toplam %100 değilse önceki turdaki dağılımınız aynen kalır.</li>
   <li>Her tur sonunda ilk 3 ve kendi sıranız görünür.</li>
   <li>Bir varlığa en fazla %60 konulabilir. Sıralama enflasyon sonrası (reel) toplam getiriye göredir.</li></ul></div>
-  <button class="back" id="fresh" style="align-self:center;color:var(--mute)">Baştan başla (kayıtlı ilerlemeyi sil)</button>`;
+  ${dbgBox()}<button class="back" id="fresh" style="align-self:center;color:var(--mute)">Baştan başla (kayıtlı ilerlemeyi sil)</button>`;
   $('#fresh').onclick=freshStart;
 }
 function liveRound(m){
@@ -579,7 +587,7 @@ function hostLive(){
       <div class="hcol"><h1 class="hbig">Telefonunuzdan katılın</h1><p class="hl">QR kodu okutun, takma ad yazın, <b>Katıl</b>’a basın.</p><p class="cnt"><b id="cnt">${n()}</b> oyuncu</p></div></div>
       <div class="chips" id="chips">${chips()}</div>
       <div class="card"><div class="row" style="align-items:center"><label for="secs">Tur süresi</label><select id="secs">${secsOpts}</select><button class="btn alt" id="fk" style="margin-left:auto">Deneme: 12 sahte oyuncu ekle</button><button class="btn" id="st">Oyunu başlat</button></div>
-      <p class="small mute">Sunum süresince bu sekmeyi açık ve görünür tutun. Soluk görünen takma adlar şu an bağlantısı kopmuş oyunculardır.</p></div>
+      ${dbgBox()}<p class="small mute">Sunum süresince bu sekmeyi açık ve görünür tutun. Soluk görünen takma adlar şu an bağlantısı kopmuş oyunculardır.</p></div>
       <div class="row"><button class="back" id="rz" style="color:var(--mute)">Odayı sıfırla (oyuncuları sil)</button></div>`;
       $('#rz').onclick=()=>{if(window.confirm('Tüm oyuncular silinsin ve yeni oyun odası açılsın mı?'))reset()};
       $('#secs').onchange=e=>{H.secs=+e.target.value;persist()};
@@ -613,13 +621,20 @@ function hostLive(){
     }
     light();
   }
+  let flaps=[];
   function open(){
     if(typeof Peer==='undefined'){netBadge(false,'Bağlantı kitaplığı yüklenemedi (internet?). Öğrenciler katılamaz.');return}
-    peer=new Peer(ROOM,PCFG);netBadge(false,'Sunucuya bağlanılıyor…');
-    peer.on('open',()=>netBadge(true,'Oda açık'));
-    peer.on('connection',onConn);
-    peer.on('disconnected',()=>{netBadge(false,'Bağlantı koptu, yeniden deneniyor');try{peer.reconnect()}catch(e){}});
-    peer.on('error',e=>{
+    peer=new Peer(ROOM,PCFG);netBadge(false,'Sunucuya bağlanılıyor…');dbg('sunucu: Peer oluşturuldu ('+ROOM+')');
+    const pr=peer;
+    pr.on('open',id=>{dbg('broker bağlantısı açık: oda '+id);netBadge(true,'Oda açık')});
+    pr.on('close',()=>dbg('peer kapandı'));
+    pr.on('connection',c=>{dbg('öğrenci bağlandı');onConn(c)});
+    pr.on('disconnected',()=>{
+      dbg('broker ile bağlantı koptu');netBadge(false,'Bağlantı koptu, yeniden deneniyor');
+      flaps=flaps.filter(t=>Date.now()-t<30000);flaps.push(Date.now());
+      if(flaps.length>=3){flaps=[];try{pr.destroy()}catch(e){}setTimeout(open,3000)}else{try{pr.reconnect()}catch(e){}}});
+    pr.on('error',e=>{
+      dbg('HATA: '+e.type+' '+(e.message||''));
       if(e.type==='unavailable-id'){netBadge(false,'Bu oda başka bir pencerede açık; yeniden deneniyor…');setTimeout(()=>{try{peer.destroy()}catch(x){}open()},4000)}
       else netBadge(false,'Ağ hatası: '+e.type);
     });
