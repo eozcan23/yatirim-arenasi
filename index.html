@@ -54,7 +54,8 @@ main.wide{max-width:1100px}
 select{font:inherit;color:inherit;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px}
 @media(max-width:560px){.pod{grid-template-columns:1fr}.hbig{font-size:2.2rem}}
 </style>
-<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <main id="app"></main>
 <div class="bar" id="bar" hidden><div><div id="barL"></div><div class="row" id="barR"></div></div></div>
 </head>
@@ -287,21 +288,36 @@ function host(){
 }
 
 /* ===================== CANLI MOD (Kahoot benzeri) =====================
-   Sunucu sayfası (#sunucu) oyun odasını açar; öğrenciler QR ile aynı adrese girip bağlanır.
-   Bağlantı PeerJS (WebRTC) ile doğrudan tarayıcılar arasında kurulur; ayrı bir sunucu gerekmez.
-   Her öğrenci turu kendi telefonunda hesaplar ve sonucunu sunucuya bildirir; sıralama sunucuda tutulur. */
-const ROOM='yatirim-arenasi-itu26';
-const PCFG=window.__PEERCFG||{};
+   Sunucu sayfası (?sunucu) oyun odasını açar; öğrenciler QR ile aynı adrese girip katılır.
+   Aracı: Firebase Realtime Database (ücretsiz). Her öğrenci turu kendi telefonunda hesaplar,
+   sonucunu veritabanına yazar; sunucu ekranı sıralamayı hesaplayıp ilk 3'ü gösterir. */
+const FB_URL='https://yatirim-arenasi-default-rtdb.europe-west1.firebasedatabase.app';
+const ROOMP='rooms/main';
 const JOIN_URL='https://eozcan23.github.io/yatirim-arenasi/';
 const JOIN_QR='<svg width="300" height="300" viewBox="0 0 296 296" aria-label="Oyun bağlantısı QR kodu"><rect width="296" height="296" fill="#FFFFFF"/><path d="M16 16h56v8h-56zM88 16h8v8h-8zM112 16h8v8h-8zM128 16h8v8h-8zM144 16h8v8h-8zM168 16h24v8h-24zM200 16h8v8h-8zM224 16h56v8h-56zM16 24h8v8h-8zM64 24h8v8h-8zM88 24h24v8h-24zM136 24h16v8h-16zM160 24h8v8h-8zM184 24h8v8h-8zM224 24h8v8h-8zM272 24h8v8h-8zM16 32h8v8h-8zM32 32h24v8h-24zM64 32h8v8h-8zM80 32h16v8h-16zM128 32h16v8h-16zM184 32h16v8h-16zM208 32h8v8h-8zM224 32h8v8h-8zM240 32h24v8h-24zM272 32h8v8h-8zM16 40h8v8h-8zM32 40h24v8h-24zM64 40h8v8h-8zM80 40h16v8h-16zM104 40h8v8h-8zM136 40h8v8h-8zM160 40h16v8h-16zM184 40h8v8h-8zM208 40h8v8h-8zM224 40h8v8h-8zM240 40h24v8h-24zM272 40h8v8h-8zM16 48h8v8h-8zM32 48h24v8h-24zM64 48h8v8h-8zM80 48h32v8h-32zM128 48h24v8h-24zM176 48h8v8h-8zM192 48h8v8h-8zM224 48h8v8h-8zM240 48h24v8h-24zM272 48h8v8h-8zM16 56h8v8h-8zM64 56h8v8h-8zM80 56h16v8h-16zM112 56h8v8h-8zM128 56h8v8h-8zM168 56h8v8h-8zM192 56h24v8h-24zM224 56h8v8h-8zM272 56h8v8h-8zM16 64h56v8h-56zM80 64h8v8h-8zM96 64h8v8h-8zM112 64h8v8h-8zM128 64h8v8h-8zM144 64h8v8h-8zM160 64h8v8h-8zM176 64h8v8h-8zM192 64h8v8h-8zM208 64h8v8h-8zM224 64h56v8h-56zM80 72h8v8h-8zM104 72h8v8h-8zM144 72h8v8h-8zM168 72h24v8h-24zM200 72h8v8h-8zM16 80h8v8h-8zM32 80h40v8h-40zM88 80h8v8h-8zM120 80h16v8h-16zM152 80h8v8h-8zM168 80h8v8h-8zM200 80h16v8h-16zM224 80h40v8h-40zM40 88h8v8h-8zM56 88h8v8h-8zM72 88h8v8h-8zM88 88h8v8h-8zM104 88h24v8h-24zM144 88h40v8h-40zM192 88h16v8h-16zM224 88h16v8h-16zM248 88h16v8h-16zM272 88h8v8h-8zM16 96h8v8h-8zM32 96h8v8h-8zM56 96h16v8h-16zM80 96h8v8h-8zM96 96h8v8h-8zM112 96h48v8h-48zM192 96h8v8h-8zM216 96h16v8h-16zM240 96h8v8h-8zM256 96h16v8h-16zM16 104h40v8h-40zM96 104h8v8h-8zM112 104h16v8h-16zM136 104h8v8h-8zM152 104h16v8h-16zM176 104h8v8h-8zM200 104h16v8h-16zM224 104h8v8h-8zM240 104h32v8h-32zM64 112h48v8h-48zM128 112h8v8h-8zM144 112h8v8h-8zM176 112h24v8h-24zM208 112h16v8h-16zM232 112h24v8h-24zM272 112h8v8h-8zM16 120h8v8h-8zM40 120h8v8h-8zM56 120h8v8h-8zM72 120h8v8h-8zM104 120h16v8h-16zM136 120h8v8h-8zM160 120h8v8h-8zM184 120h8v8h-8zM208 120h8v8h-8zM224 120h8v8h-8zM248 120h8v8h-8zM264 120h16v8h-16zM32 128h8v8h-8zM64 128h24v8h-24zM96 128h24v8h-24zM136 128h32v8h-32zM176 128h8v8h-8zM216 128h16v8h-16zM248 128h24v8h-24zM56 136h8v8h-8zM112 136h16v8h-16zM136 136h8v8h-8zM160 136h8v8h-8zM184 136h8v8h-8zM200 136h8v8h-8zM216 136h16v8h-16zM256 136h8v8h-8zM24 144h8v8h-8zM40 144h16v8h-16zM64 144h16v8h-16zM88 144h8v8h-8zM104 144h8v8h-8zM128 144h40v8h-40zM176 144h8v8h-8zM200 144h24v8h-24zM232 144h16v8h-16zM272 144h8v8h-8zM24 152h8v8h-8zM40 152h16v8h-16zM80 152h24v8h-24zM112 152h24v8h-24zM144 152h8v8h-8zM160 152h48v8h-48zM224 152h16v8h-16zM248 152h16v8h-16zM272 152h8v8h-8zM24 160h16v8h-16zM64 160h8v8h-8zM88 160h64v8h-64zM160 160h8v8h-8zM176 160h16v8h-16zM208 160h8v8h-8zM232 160h16v8h-16zM256 160h16v8h-16zM16 168h8v8h-8zM32 168h8v8h-8zM48 168h8v8h-8zM80 168h8v8h-8zM104 168h16v8h-16zM144 168h8v8h-8zM184 168h40v8h-40zM232 168h32v8h-32zM272 168h8v8h-8zM16 176h16v8h-16zM64 176h8v8h-8zM80 176h16v8h-16zM104 176h16v8h-16zM128 176h8v8h-8zM160 176h16v8h-16zM184 176h8v8h-8zM200 176h24v8h-24zM232 176h24v8h-24zM16 184h24v8h-24zM72 184h8v8h-8zM88 184h32v8h-32zM136 184h24v8h-24zM176 184h56v8h-56zM248 184h8v8h-8zM272 184h8v8h-8zM16 192h8v8h-8zM32 192h16v8h-16zM64 192h48v8h-48zM120 192h16v8h-16zM152 192h8v8h-8zM168 192h8v8h-8zM216 192h8v8h-8zM232 192h40v8h-40zM16 200h8v8h-8zM40 200h16v8h-16zM96 200h8v8h-8zM144 200h8v8h-8zM160 200h40v8h-40zM208 200h16v8h-16zM232 200h8v8h-8zM248 200h32v8h-32zM16 208h8v8h-8zM40 208h8v8h-8zM64 208h8v8h-8zM80 208h8v8h-8zM96 208h40v8h-40zM152 208h8v8h-8zM168 208h8v8h-8zM200 208h48v8h-48zM272 208h8v8h-8zM80 216h24v8h-24zM120 216h8v8h-8zM152 216h32v8h-32zM200 216h16v8h-16zM240 216h8v8h-8zM256 216h24v8h-24zM16 224h56v8h-56zM88 224h24v8h-24zM120 224h40v8h-40zM176 224h8v8h-8zM192 224h24v8h-24zM224 224h8v8h-8zM240 224h8v8h-8zM256 224h16v8h-16zM16 232h8v8h-8zM64 232h8v8h-8zM80 232h8v8h-8zM112 232h8v8h-8zM144 232h40v8h-40zM200 232h16v8h-16zM240 232h32v8h-32zM16 240h8v8h-8zM32 240h24v8h-24zM64 240h8v8h-8zM80 240h40v8h-40zM144 240h8v8h-8zM176 240h24v8h-24zM208 240h48v8h-48zM272 240h8v8h-8zM16 248h8v8h-8zM32 248h24v8h-24zM64 248h8v8h-8zM80 248h40v8h-40zM128 248h16v8h-16zM152 248h16v8h-16zM200 248h8v8h-8zM216 248h8v8h-8zM240 248h8v8h-8zM256 248h8v8h-8zM272 248h8v8h-8zM16 256h8v8h-8zM32 256h24v8h-24zM64 256h8v8h-8zM80 256h8v8h-8zM104 256h8v8h-8zM136 256h16v8h-16zM160 256h8v8h-8zM176 256h8v8h-8zM192 256h16v8h-16zM224 256h16v8h-16zM248 256h16v8h-16zM16 264h8v8h-8zM64 264h8v8h-8zM88 264h16v8h-16zM112 264h32v8h-32zM184 264h8v8h-8zM240 264h24v8h-24zM16 272h56v8h-56zM80 272h40v8h-40zM136 272h8v8h-8zM152 272h8v8h-8zM192 272h48v8h-48zM248 272h8v8h-8zM264 272h8v8h-8z" fill="#000000"/></svg>';
 const esc=s=>String(s).replace(/[<>&"']/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;'}[c]));
 let MODE='solo';
-const NET={peer:null,conn:null,ok:false,dialT:null};
-let CURV={};
+const NET={ok:false};
+let CURV={},DB=null,OFF=0,LASTS=null,LASTRES=null;
 const LOG=[];
-function dbg(t){const d=new Date();LOG.push(d.toTimeString().slice(0,8)+' '+t);if(LOG.length>40)LOG.shift();const e=$('#dbg');if(e)e.textContent=LOG.join('\n')}
+function dbg(t){const d=new Date();LOG.push(d.toTimeString().slice(0,8)+' '+t);if(LOG.length>150)LOG.shift();const e=$('#dbg');if(e)e.textContent=LOG.join('\n')}
 const dbgBox=()=>`<details class="small mute"><summary>Bağlantı günlüğü (sorun olursa bunu bana gönderin)</summary><pre id="dbg" style="white-space:pre-wrap;font-size:.75rem;overflow-wrap:anywhere">${esc(LOG.join('\n'))}</pre></details>`;
 const medal=i=>['1.','2.','3.'][i];
+const newGid=()=>Math.random().toString(36).slice(2,10);
+
+function fbInit(){
+  if(DB)return DB;
+  if(typeof firebase==='undefined'){dbg('Firebase kitaplığı yüklenemedi');return null}
+  try{
+    if(!firebase.apps.length)firebase.initializeApp({databaseURL:FB_URL,projectId:'yatirim-arenasi'});
+    DB=firebase.database();
+    DB.ref('.info/serverTimeOffset').on('value',s=>{OFF=s.val()||0});
+    DB.ref('.info/connected').on('value',s=>{NET.ok=!!s.val();dbg(NET.ok?'veritabanına bağlı':'veritabanı bağlantısı yok');netBadge(NET.ok,MODE==='host'?'Oda açık':'Bağlı')});
+    return DB;
+  }catch(e){dbg('Firebase başlatılamadı: '+e.message);return null}
+}
+const R=p=>DB.ref(ROOMP+(p?'/'+p:''));
+const srvNow=()=>Date.now()+OFF;
 
 function netBadge(ok,txt){
   let b=$('#net');
@@ -313,13 +329,13 @@ setInterval(()=>{
   const t=$('#tmr');
   if(t&&S.deadline){const s=Math.max(0,Math.ceil((S.deadline-Date.now())/1000));t.textContent='⏱ '+Math.floor(s/60)+':'+String(s%60).padStart(2,'0');t.className='tot '+(s<=15?'bad':'ok')}
   const h=$('#hdl');
-  if(h&&window.__HDL){const s=Math.max(0,Math.ceil((window.__HDL()-Date.now())/1000));h.textContent=Math.floor(s/60)+':'+String(s%60).padStart(2,'0')}
+  if(h&&window.__HDL){const s=Math.max(0,Math.ceil((window.__HDL()-srvNow())/1000));h.textContent=Math.floor(s/60)+':'+String(s%60).padStart(2,'0')}
 },400);
 
 /* ---------- öğrenci tarafı ---------- */
 function liveJoin(nick){
   MODE='live';
-  if(!S.token) S.token=Math.random().toString(36).slice(2)+Date.now().toString(36);
+  if(!S.token)S.token=Math.random().toString(36).slice(2)+Date.now().toString(36);
   S.nick=nick;S.live=true;S.phase='live';save();
   screenConnecting();liveNet();
 }
@@ -328,72 +344,74 @@ function screenConnecting(msg){
   app.innerHTML=`<div class="eyebrow">Yatırım Arenası</div><h1>${esc(S.nick)}</h1><div class="card"><p id="cstat">${msg||'Sunucuya bağlanılıyor…'}</p></div><div id="solo"></div>${dbgBox()}<button class="back" id="fresh0" style="align-self:center;color:var(--mute)">Baştan başla (kayıtlı ilerlemeyi sil)</button>`;
   $('#fresh0').onclick=freshStart;
   setTimeout(()=>{
-    if(!NET.ok&&$('#solo')){
-      $('#solo').innerHTML=`<div class="card"><p class="small mute">Bağlanamıyorsanız ağ bu bağlantıya izin vermiyor ya da sunucu henüz açılmamış olabilir. Beklemeye devam edebilir ya da tek başına oynayabilirsiniz (sıralamaya girmez).</p><button class="btn alt" id="sb">Tek başına oyna</button></div>`;
+    if(!CURV.s&&$('#solo')){
+      $('#solo').innerHTML=`<div class="card"><p class="small mute">Bağlanamıyorsanız internet bağlantınızı kontrol edin ya da sunucu henüz açılmamış olabilir. Beklemeye devam edebilir ya da tek başına oynayabilirsiniz (sıralamaya girmez).</p><button class="btn alt" id="sb">Tek başına oyna</button></div>`;
       $('#sb').onclick=soloStart;
     }
   },12000);
 }
 function soloStart(){
   MODE='solo';netBadge(true);
-  try{if(NET.peer)NET.peer.destroy()}catch(e){}
-  NET.peer=null;NET.conn=null;NET.ok=false;
   S={nick:S.nick,round:0,w:{},val:START,hist:[],rcv:[],phase:'play',locked:{}};save();play();
 }
+let LSTARTED=false;
 function liveNet(){
-  if(typeof Peer==='undefined'){setStat('Bağlantı kitaplığı yüklenemedi. İnternet bağlantınızı kontrol edin.');return}
-  const peer=new Peer(undefined,PCFG);NET.peer=peer;dbg('öğrenci: Peer oluşturuldu');
-  let flaps=[];
-  const later=ms=>{clearTimeout(NET.dialT);NET.dialT=setTimeout(dial,ms)};
-  peer.on('open',id=>{dbg('broker bağlantısı açık ('+id+')');dial()});
-  peer.on('close',()=>dbg('peer kapandı'));
-  peer.on('disconnected',()=>{
-    dbg('broker ile bağlantı koptu');flaps=flaps.filter(t=>Date.now()-t<30000);flaps.push(Date.now());
-    if(flaps.length>=3){flaps=[];try{peer.destroy()}catch(e){}NET.peer=null;setTimeout(liveNet,3000)}else{try{peer.reconnect()}catch(e){}}});
-  peer.on('error',e=>{
-    dbg('HATA: '+e.type+' '+(e.message||''));
-    if(e.type==='peer-unavailable'){setStat('Sunucu henüz açılmadı, bekleniyor…');later(3000)}
-    else{setStat('Ağ hatası, yeniden deneniyor…');
-      setTimeout(()=>{if(peer.destroyed){NET.peer=null;liveNet()}else if(peer.disconnected){try{peer.reconnect()}catch(x){}}else if(peer.open){dial()}},3000)}
-  });
-  function dial(){
-    if(NET.conn&&NET.conn.open)return;
-    dbg('sunucuya bağlanılıyor');const c=peer.connect(ROOM,{reliable:true});NET.conn=c;
-    c.on('open',()=>{dbg('sunucuya bağlandı');NET.ok=true;netBadge(true);c.send({t:'hello',nick:S.nick,token:S.token})});
-    c.on('data',onHost);
-    c.on('close',()=>{dbg('sunucu bağlantısı kapandı');NET.ok=false;netBadge(false);later(2000)});
-    c.on('error',e=>dbg('bağlantı hatası: '+(e&&e.type||e)));
-  }
+  if(LSTARTED)return;
+  if(!fbInit()){setStat('Bağlantı kitaplığı yüklenemedi. İnternet bağlantınızı kontrol edin.');return}
+  LSTARTED=true;
+  DB.ref('.info/connected').on('value',s=>{if(s.val()){const pr=R('pr/'+S.token);pr.onDisconnect().remove();pr.set(true)}});
+  R('ok/'+S.token).on('value',s=>onOk(s.val()));
+  R('s').on('value',s=>onState(s.val()));
+  R('res/'+S.token).on('value',s=>{LASTRES=s.val();maybeRes()});
+  joinRoom();
 }
-function toHost(m){try{if(NET.conn&&NET.conn.open)NET.conn.send(m)}catch(e){}}
+function joinRoom(){
+  dbg('odaya katılma isteği gönderildi');
+  R('p/'+S.token).update({nick:S.nick,t:Date.now()});
+  const pr=R('pr/'+S.token);pr.onDisconnect().remove();pr.set(true);
+}
+function sendSub(i){
+  const h=S.hist[i];if(!h||!DB)return;
+  R('p/'+S.token+'/subs/'+i).set({val:h.end,tr:cumReal(i),nom:h.nominal,real:h.real,badge:!!h.badge});
+}
+function resendAll(){S.hist.forEach((_,i)=>sendSub(i))}
 function cumReal(i){
   let f=1;for(let k=0;k<=i;k++)f*=1+S.hist[k].infl/100;
   return ((S.hist[i].end/START)/f-1)*100;
 }
-function sendSub(i){const h=S.hist[i];if(!h)return;toHost({t:'sub',r:i,val:h.end,tr:cumReal(i),nom:h.nominal,real:h.real,badge:h.badge})}
-function resendAll(){S.hist.forEach((_,i)=>sendSub(i))}
 function autoRound(){
   S.round=S.hist.length;
   const prev=S.hist.length?S.hist[S.hist.length-1].w:{mevduat:100};
   computeRound(prev);S.cur=null;S.locked={};save();sendSub(S.hist.length-1);
 }
-function onHost(m){
-  if(!m||typeof m!=='object')return;
-  switch(m.t){
-    case 'ok':
-      if(S.gid&&m.gid&&S.gid!==m.gid){
-        S={nick:m.nick,round:0,w:{},val:START,hist:[],rcv:[],phase:'live',locked:{},token:S.token,live:true,gid:m.gid};CURV={};
-      }
-      S.nick=m.nick;S.gid=m.gid||S.gid;save();resendAll();break;
-    case 'late':screenLate();break;
-    case 'newgame':S={nick:S.nick,round:0,w:{},val:START,hist:[],rcv:[],phase:'live',locked:{},token:S.token,live:true};CURV={};save();break;
-    case 'lobby':liveLobby(m);break;
-    case 'round':liveRound(m);break;
-    case 'prog':updateProg(m);break;
-    case 'close':liveClose(m);break;
-    case 'results':liveResults(m);break;
-    case 'end':liveEnd(m);break;
+function onOk(v){
+  if(!v||MODE!=='live')return;
+  if(v.late){screenLate();return}
+  if(v.nick){S.nick=v.nick;save()}
+  resendAll();
+}
+function freshS(){return {nick:S.nick,round:0,w:{},val:START,hist:[],rcv:[],phase:'live',locked:{},token:S.token,live:true}}
+function onState(s){
+  if(MODE!=='live')return;
+  if(!s){setStat('Sunucu henüz açılmadı, bekleniyor…');return}
+  if(S.gid&&S.gid!==s.gid){dbg('yeni oyun odası: ilerleme sıfırlandı');S=freshS();CURV={};LASTRES=null;S.gid=s.gid;save();joinRoom()}
+  if(!S.gid){S.gid=s.gid;save()}
+  LASTS=s;
+  const ms=Math.max(0,(s.dl||0)-srvNow());
+  switch(s.phase){
+    case 'lobby':
+      if(CURV.s==='lobby'){const e=$('#lobn');if(e)e.textContent=s.n}else liveLobby({n:s.n});
+      break;
+    case 'round':liveRound({r:s.round,ms,n:s.n,got:s.got});break;
+    case 'closing':liveClose({r:s.round});break;
+    default:maybeRes();
   }
+}
+function maybeRes(){
+  const s=LASTS,r=LASTRES;
+  if(MODE!=='live'||!s||!r||r.gid!==s.gid||r.r!==s.round)return;
+  if(s.phase==='results'&&r.kind==='results'){if(CURV.s==='res'&&CURV.r===r.r)return;liveResults(r)}
+  else if(s.phase==='end'&&r.kind==='end'){if(CURV.s==='end')return;liveEnd(r)}
 }
 function screenLate(){
   CURV={s:'late'};bar();
@@ -404,7 +422,7 @@ function freshStart(){try{localStorage.removeItem('arena')}catch(e){}location.hr
 function liveLobby(m){
   CURV={s:'lobby'};bar();
   app.innerHTML=`<div class="eyebrow">Yatırım Arenası</div><h1>${esc(S.nick)}</h1>
-  <div class="card"><h3>Bekleme salonu</h3><p>Katıldınız. Sunucu oyunu başlatınca ilk tur kendiliğinden açılır.</p><p><b style="font-size:2rem">${m.n}</b> <span class="mute">oyuncu bağlı</span></p></div>
+  <div class="card"><h3>Bekleme salonu</h3><p>Katıldınız. Sunucu oyunu başlatınca ilk tur kendiliğinden açılır.</p><p><b id="lobn" style="font-size:2rem">${m.n}</b> <span class="mute">oyuncu bağlı</span></p></div>
   <div class="card"><h3>Hatırlatma</h3><ul class="rules">
   <li>${P.length} tur oynanır; her turun bir süresi vardır.</li>
   <li>Süre dolunca dağılımınız toplam %100 değilse önceki turdaki dağılımınız aynen kalır.</li>
@@ -414,29 +432,31 @@ function liveLobby(m){
   $('#fresh').onclick=freshStart;
 }
 function liveRound(m){
-  const R=m.r;S.deadline=Date.now()+m.ms;
-  if(S.hist.length>R){return liveWait(R,m)}
-  if(CURV.s==='play'&&CURV.r===R)return;
-  while(S.hist.length<R)autoRound();
-  S.round=R;S.cur=null;S.phase='live';save();CURV={s:'play',r:R};play();
+  const R_=m.r;S.deadline=Date.now()+m.ms;
+  if(CURV.s==='wait'&&CURV.r===R_){updateProg({r:R_,got:m.got,n:m.n});return}
+  if(S.hist.length>R_){return liveWait(R_,m)}
+  if(CURV.s==='play'&&CURV.r===R_)return;
+  while(S.hist.length<R_)autoRound();
+  S.round=R_;S.cur=null;S.phase='live';save();CURV={s:'play',r:R_};play();
 }
-function liveWait(R,m){
-  CURV={s:'wait',r:R};bar();
-  app.innerHTML=`${steps()}<div class="eyebrow">t${R} · Karar gönderildi</div>
+function liveWait(R_,m){
+  CURV={s:'wait',r:R_,closing:!!(m&&m.closing)};bar();
+  app.innerHTML=`${steps()}<div class="eyebrow">t${R_} · Karar gönderildi</div>
   <div class="card"><h3>${m&&m.closing?'Süre doldu, sonuçlar hesaplanıyor…':'Kararınız alındı ✓'}</h3><p class="mute">Sonuçlar herkes gönderince ya da süre dolunca açılır.</p>
   <p><b id="prog" style="font-size:1.6rem">${(m&&m.got)||0} / ${(m&&m.n)||'?'}</b> <span class="mute">oyuncu gönderdi</span></p></div>`;
 }
-function updateProg(m){const e=$('#prog');if(e&&CURV.s==='wait'&&CURV.r===m.r)e.textContent=m.got+' / '+m.n}
+function updateProg(m){const e=$('#prog');if(e&&CURV.s==='wait'&&CURV.r===m.r&&m.n!=null)e.textContent=(m.got||0)+' / '+m.n}
 function liveClose(m){
-  const R=m.r;
-  if(S.hist.length<=R){
-    while(S.hist.length<R)autoRound();
-    S.round=R;
+  const R_=m.r;
+  if(CURV.s==='wait'&&CURV.r===R_&&CURV.closing)return;
+  if(S.hist.length<=R_){
+    while(S.hist.length<R_)autoRound();
+    S.round=R_;
     const prev=S.hist.length?S.hist[S.hist.length-1].w:{mevduat:100};
     const cur=S.cur, ok=cur&&Object.values(cur).reduce((a,b)=>a+b,0)===100&&ASSETS.every(a=>(cur[a.id]||0)<=MAXW);
     computeRound(ok?cur:prev);S.cur=null;S.locked={};save();sendSub(S.hist.length-1);
   }
-  liveWait(R,{closing:true,got:0,n:'…'});
+  liveWait(R_,{closing:true,got:(LASTS&&LASTS.got)||0,n:(LASTS&&LASTS.n)||'…'});
 }
 function lbCard(idx){
   const m=(S.lb||{})[idx];if(!m)return '';
@@ -464,85 +484,68 @@ function liveEnd(m){
 
 /* ---------- sunucu (sunum ekranı) ---------- */
 function hostLive(){
-  MODE='host';
-  const HK='arenaHost';
-  let H=null;try{H=JSON.parse(localStorage.getItem(HK)||'null')}catch(e){}
-  if(!H||!H.players)H={phase:'lobby',round:-1,secs:120,dl:0,players:{}};
-  if(!H.gid){H.gid=Math.random().toString(36).slice(2,10);try{localStorage.setItem(HK,JSON.stringify(H))}catch(e){}}
-  const conns={};let peer=null,tmr=null,progT=0;
+  MODE='host';app.classList.add('wide');
+  const H={phase:'lobby',round:-1,secs:120,dl:0,gid:newGid(),players:{},online:{},endAfter:false};
   window.__HDL=()=>H.dl;
-  app.classList.add('wide');
-  const persist=()=>{try{localStorage.setItem(HK,JSON.stringify(H))}catch(e){}};
-  const isOn=t=>conns[t]&&conns[t].open;
-  const send=(t,m)=>{if(isOn(t)){try{conns[t].send(m)}catch(e){}}};
-  const all=m=>Object.keys(conns).forEach(t=>send(t,m));
+  let ready=false,pt=null,tmr=null;
+  if(!fbInit()){netBadge(false,'Bağlantı kitaplığı yüklenemedi (internet?). Öğrenciler katılamaz.');app.innerHTML='<div class="eyebrow">Sunucu</div><h1>Bağlantı kurulamadı</h1><p>Firebase kitaplığı yüklenemedi. İnternet bağlantınızı kontrol edip sayfayı yenileyin.</p>'+dbgBox();return}
+  netBadge(false,'Veritabanına bağlanılıyor…');
   const n=()=>Object.keys(H.players).length;
-  const got=r=>Object.values(H.players).filter(p=>p.subs[r]||p.fake).length;
+  const isOn=t=>!!(H.online[t]||(H.players[t]&&H.players[t].fake));
+  const got=r=>Object.values(H.players).filter(p=>(p.subs&&p.subs[r])||p.fake).length;
+  function push(now){
+    clearTimeout(pt);
+    const run=()=>R('s').set({gid:H.gid,phase:H.phase,round:H.round,dl:H.dl,secs:H.secs,n:n(),got:got(H.round)});
+    if(now)run();else pt=setTimeout(run,250);
+  }
   function board(r){
     const a=Object.entries(H.players).map(([tok,p])=>{
-      let b=null;for(let k=r;k>=0;k--)if(p.subs[k]){b=p.subs[k];break}
-      let d=0;for(let k=0;k<=r;k++)if(p.subs[k]&&p.subs[k].badge)d++;
+      let b=null;for(let k=r;k>=0;k--)if(p.subs&&p.subs[k]){b=p.subs[k];break}
+      let d=0;for(let k=0;k<=r;k++)if(p.subs&&p.subs[k]&&p.subs[k].badge)d++;
       return {tok,nick:p.nick,tr:b?b.tr:-999,val:b?b.val:START,d,has:!!b}});
     a.sort((x,y)=>y.tr-x.tr);return a;
   }
-  function resultsMsg(t,end){
+  function resMsg(t,end){
     const b=board(H.round),i=b.findIndex(x=>x.tok===t),me=b[i]||{tr:0,val:START};
     const top=b.filter(x=>x.has).slice(0,3).map(x=>({n:x.nick,tr:x.tr,v:x.val}));
-    return {t:end?'end':'results',r:H.round,top,rank:i+1,n:b.length,me:{tr:me.tr,v:me.val}};
+    return {kind:end?'end':'results',gid:H.gid,r:H.round,top,rank:i+1,n:b.length,me:{tr:me.tr,v:me.val}};
   }
-  function stateFor(t){
-    switch(H.phase){
-      case 'lobby':return {t:'lobby',n:n()};
-      case 'round':return {t:'round',r:H.round,ms:Math.max(0,H.dl-Date.now()),n:n(),got:got(H.round)};
-      case 'closing':return {t:'close',r:H.round};
-      case 'results':return resultsMsg(t,false);
-      default:return resultsMsg(t,true);
-    }
+  function writeRes(end){
+    Object.keys(H.players).forEach(t=>{if(!H.players[t].fake)R('res/'+t).set(resMsg(t,end))});
   }
-  function onConn(c){
-    let tok=null;
-    c.on('data',m=>{
-      if(!m||typeof m!=='object')return;
-      if(m.t==='hello'){
-        tok=String(m.token||'').slice(0,40);if(!tok)return;
-        let p=H.players[tok];
-        if(!p){
-          if(H.phase!=='lobby'){try{c.send({t:'late'})}catch(e){}return}
-          const nick=String(m.nick||'Oyuncu').replace(/[<>&]/g,'').slice(0,14).trim()||'Oyuncu';
-          const names=Object.values(H.players).map(x=>x.nick.toLowerCase());let nn=nick,i=2;
-          while(names.includes(nn.toLowerCase()))nn=nick+' '+(i++);
-          p=H.players[tok]={nick:nn,subs:{}};
-        }
-        conns[tok]=c;persist();
-        try{c.send({t:'ok',nick:p.nick,gid:H.gid});c.send(stateFor(tok))}catch(e){}
-        if(H.phase==='lobby')all({t:'lobby',n:n()});
-        light();
-      }else if(m.t==='sub'&&tok&&H.players[tok]){
-        const r=+m.r;if(!(r>=0&&r<P.length))return;
-        const f=x=>isFinite(+x)?+x:0;
-        H.players[tok].subs[r]={val:f(m.val),tr:f(m.tr),nom:f(m.nom),real:f(m.real),badge:!!m.badge};
-        persist();progress();
+  function syncPlayers(v){
+    v=v||{};let changed=false,subsChanged=false;
+    Object.keys(v).forEach(tok=>{
+      const d=v[tok]||{};
+      if(!H.players[tok]){
+        if(H.phase!=='lobby'){R('ok/'+tok).set({late:true,gid:H.gid});return}
+        const nick=String(d.nick||'Oyuncu').replace(/[<>&]/g,'').slice(0,14).trim()||'Oyuncu';
+        const names=Object.values(H.players).map(x=>x.nick.toLowerCase());let nn=nick,i=2;
+        while(names.includes(nn.toLowerCase()))nn=nick+' '+(i++);
+        H.players[tok]={nick:nn,subs:{}};R('ok/'+tok).set({nick:nn,gid:H.gid});changed=true;dbg('oyuncu katıldı: '+nn);
       }
+      const subs=d.subs||{};
+      if(JSON.stringify(subs)!==JSON.stringify(H.players[tok].subs)){H.players[tok].subs=subs;subsChanged=true}
     });
-    c.on('close',()=>{if(tok&&conns[tok]===c){delete conns[tok];light()}});
-    c.on('error',()=>{});
+    if(changed){push();light()}
+    if(subsChanged){progress()}
   }
   function progress(){
     const g=got(H.round);
     const e=$('#got');if(e){e.textContent=g;const pb=$('#pb');if(pb)pb.style.width=(n()?100*g/n():0)+'%'}
-    if(Date.now()-progT>350){progT=Date.now();all({t:'prog',r:H.round,got:g,n:n()})}
+    if(H.phase==='round')push();
   }
   function light(){
     const c=$('#cnt');if(c)c.textContent=n();
     const ch=$('#chips');if(ch)ch.innerHTML=chips();
     const e=$('#tot');if(e)e.textContent=n();
   }
-  const chips=()=>Object.entries(H.players).map(([t,p])=>`<span class="chip ${isOn(t)||p.fake?'':'off'}">${esc(p.nick)}</span>`).join('')||'<span class="mute">Henüz kimse katılmadı…</span>';
+  const chips=()=>Object.entries(H.players).map(([t,p])=>`<span class="chip ${isOn(t)?'':'off'}">${esc(p.nick)}</span>`).join('')||'<span class="mute">Henüz kimse katılmadı…</span>';
   const FN=['Kurt','Aslan','Ece','Deniz','Bora','Mira','Çınar','Lale','Poyraz','Defne','Arda','Selin'];
   function addFake(){
     if(H.phase!=='lobby')return;
     FN.forEach(nm=>{const tok='fake-'+nm;if(!H.players[tok]&&!Object.values(H.players).some(p=>p.nick===nm))H.players[tok]={nick:nm,subs:{},fake:true,v:START}});
-    persist();all({t:'lobby',n:n()});view();
+    push(true);view();
   }
   function fakeSubs(r){
     Object.values(H.players).forEach(p=>{if(!p.fake||p.subs[r])return;
@@ -551,32 +554,36 @@ function hostLive(){
       p.subs[r]={val:p.v,tr:((p.v/START)/f-1)*100,nom:0,real:0,badge:Math.random()<.3}});
   }
   function start(){if(H.phase!=='lobby'||!n())return;H.round=0;openRound()}
-  function openRound(){H.phase='round';H.dl=Date.now()+H.secs*1000;persist();sched();all({t:'round',r:H.round,ms:H.secs*1000,n:n(),got:0});view()}
-  function sched(){clearTimeout(tmr);if(H.phase==='round')tmr=setTimeout(closeRound,Math.max(0,H.dl-Date.now()))}
+  function openRound(){H.phase='round';H.dl=srvNow()+H.secs*1000;sched();push(true);view()}
+  function sched(){clearTimeout(tmr);if(H.phase==='round')tmr=setTimeout(closeRound,Math.max(0,H.dl-srvNow()))}
   function closeRound(){
-    if(H.phase!=='round')return;clearTimeout(tmr);H.phase='closing';persist();all({t:'close',r:H.round});view();
+    if(H.phase!=='round')return;clearTimeout(tmr);H.phase='closing';push(true);view();
     const t0=Date.now();
     const poll=setInterval(()=>{
-      const need=Object.keys(conns).filter(t=>isOn(t)&&H.players[t]&&!H.players[t].subs[H.round]);
-      if(!need.length||Date.now()-t0>4500){clearInterval(poll);finish()}
+      const need=Object.keys(H.players).filter(t=>H.online[t]&&!H.players[t].fake&&!(H.players[t].subs&&H.players[t].subs[H.round]));
+      if(!need.length||Date.now()-t0>5000){clearInterval(poll);finish()}
     },400);
   }
   function finish(){
     fakeSubs(H.round);
-    if(H.endAfter){H.endAfter=false;H.phase='end';persist();Object.keys(conns).forEach(t=>send(t,resultsMsg(t,true)));view();return}
-    H.phase='results';persist();Object.keys(conns).forEach(t=>send(t,resultsMsg(t,false)));view()}
+    if(H.endAfter){H.endAfter=false;writeRes(true);H.phase='end';push(true);view();return}
+    writeRes(false);H.phase='results';push(true);view();
+  }
   function endNow(){
     if(!window.confirm('Oyun burada bitirilsin mi? Final sıralaması şu ana kadarki turlara göre hesaplanır.'))return;
     if(H.phase==='round'){H.endAfter=true;closeRound()}
-    else if(H.phase==='results'){H.phase='end';persist();Object.keys(conns).forEach(t=>send(t,resultsMsg(t,true)));view()}
+    else if(H.phase==='results'){writeRes(true);H.phase='end';push(true);view()}
   }
   function next(){
     if(H.phase!=='results')return;
-    if(H.round>=P.length-1){H.phase='end';persist();Object.keys(conns).forEach(t=>send(t,resultsMsg(t,true)));view();return}
+    if(H.round>=P.length-1){writeRes(true);H.phase='end';push(true);view();return}
     H.round++;openRound();
   }
-  function extend(){if(H.phase!=='round')return;H.dl+=30000;persist();sched();all({t:'round',r:H.round,ms:H.dl-Date.now(),n:n(),got:got(H.round)})}
-  function reset(){H={phase:'lobby',round:-1,secs:H.secs,dl:0,players:{},gid:Math.random().toString(36).slice(2,10)};persist();all({t:'newgame'});Object.keys(conns).forEach(t=>{try{conns[t].close()}catch(e){}});view()}
+  function extend(){if(H.phase!=='round')return;H.dl+=30000;sched();push(true)}
+  function reset(){
+    H.phase='lobby';H.round=-1;H.dl=0;H.gid=newGid();H.players={};H.endAfter=false;
+    R('').remove().then(()=>{push(true)}).catch(()=>push(true));view();
+  }
   const podium=list=>`<div class="pod">${list.map((x,i)=>`<div class="pc p${i+1}"><div class="pn">${i+1}</div><div class="pname">${esc(x.nick)}</div><div class="pr ${cls(x.tr)}">${pc(x.tr)}</div><div class="small mute">${fmt(x.val)} TL</div></div>`).join('')}</div>`;
   function view(){
     bar();
@@ -590,7 +597,7 @@ function hostLive(){
       ${dbgBox()}<p class="small mute">Sunum süresince bu sekmeyi açık ve görünür tutun. Soluk görünen takma adlar şu an bağlantısı kopmuş oyunculardır.</p></div>
       <div class="row"><button class="back" id="rz" style="color:var(--mute)">Odayı sıfırla (oyuncuları sil)</button></div>`;
       $('#rz').onclick=()=>{if(window.confirm('Tüm oyuncular silinsin ve yeni oyun odası açılsın mı?'))reset()};
-      $('#secs').onchange=e=>{H.secs=+e.target.value;persist()};
+      $('#secs').onchange=e=>{H.secs=+e.target.value;push(true)};
       $('#st').onclick=start;$('#fk').onclick=addFake;
     }else if(H.phase==='round'||H.phase==='closing'){
       const g=got(H.round),c=H.phase==='closing';
@@ -621,27 +628,23 @@ function hostLive(){
     }
     light();
   }
-  let flaps=[];
-  function open(){
-    if(typeof Peer==='undefined'){netBadge(false,'Bağlantı kitaplığı yüklenemedi (internet?). Öğrenciler katılamaz.');return}
-    peer=new Peer(ROOM,PCFG);netBadge(false,'Sunucuya bağlanılıyor…');dbg('sunucu: Peer oluşturuldu ('+ROOM+')');
-    const pr=peer;
-    pr.on('open',id=>{dbg('broker bağlantısı açık: oda '+id);netBadge(true,'Oda açık')});
-    pr.on('close',()=>dbg('peer kapandı'));
-    pr.on('connection',c=>{dbg('öğrenci bağlandı');onConn(c)});
-    pr.on('disconnected',()=>{
-      dbg('broker ile bağlantı koptu');netBadge(false,'Bağlantı koptu, yeniden deneniyor');
-      flaps=flaps.filter(t=>Date.now()-t<30000);flaps.push(Date.now());
-      if(flaps.length>=3){flaps=[];try{pr.destroy()}catch(e){}setTimeout(open,3000)}else{try{pr.reconnect()}catch(e){}}});
-    pr.on('error',e=>{
-      dbg('HATA: '+e.type+' '+(e.message||''));
-      if(e.type==='unavailable-id'){netBadge(false,'Bu oda başka bir pencerede açık; yeniden deneniyor…');setTimeout(()=>{try{peer.destroy()}catch(x){}open()},4000)}
-      else netBadge(false,'Ağ hatası: '+e.type);
-    });
-  }
-  if(H.phase==='closing')H.phase='results';
-  if(H.phase==='round')sched();
-  view();open();
+  // başlangıç: veritabanındaki mevcut oda varsa devral
+  Promise.all([R('s').once('value'),R('ok').once('value'),R('p').once('value'),R('pr').once('value')]).then(([sS,okS,pS,prS])=>{
+    const s=sS.val(),ok=okS.val()||{},p=pS.val()||{};
+    if(s&&s.gid){
+      Object.assign(H,{gid:s.gid,phase:s.phase==='closing'?'results':s.phase,round:s.round,dl:s.dl||0,secs:s.secs||120});
+      Object.keys(p).forEach(tok=>{if(ok[tok]&&ok[tok].nick)H.players[tok]={nick:ok[tok].nick,subs:(p[tok]&&p[tok].subs)||{}}});
+      dbg('mevcut oda devralındı: '+s.phase+', '+n()+' oyuncu');
+    }
+    H.online=prS.val()||{};
+    ready=true;
+    R('pr').on('value',x=>{H.online=x.val()||{};light()});
+    R('p').on('value',x=>syncPlayers(x.val()));
+    if(H.phase==='round')sched();
+    if(H.phase==='results'||H.phase==='end'){/* sonuçlar zaten yazılmış */}
+    push(true);view();
+  }).catch(e=>{dbg('HATA: '+e.message);netBadge(false,'Veritabanı hatası')});
+  view();
 }
 
 if(!P.length){app.innerHTML='<h1>Yatırım Arenası</h1><p>Dönem verisi yüklenmedi.</p>'}
